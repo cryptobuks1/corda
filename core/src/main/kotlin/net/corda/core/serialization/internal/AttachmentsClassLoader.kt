@@ -18,6 +18,10 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.*
+import java.security.AccessController.doPrivileged
+import java.security.Permission
+import java.security.PrivilegedAction
+import java.security.PrivilegedExceptionAction
 import java.util.*
 
 /**
@@ -44,7 +48,9 @@ class AttachmentsClassLoader(attachments: List<Attachment>,
 
         init {
             // Apply our own URLStreamHandlerFactory to resolve attachments
-            setOrDecorateURLStreamHandlerFactory()
+            doPrivileged(PrivilegedAction {
+                setOrDecorateURLStreamHandlerFactory()
+            })
         }
 
         // Jolokia and Json-simple are dependencies that were bundled by mistake within contract jars.
@@ -320,22 +326,24 @@ object AttachmentsClassLoaderBuilder {
         val attachmentIds = attachments.map(Attachment::id).toSet()
 
         val serializationContext = cache.computeIfAbsent(Key(attachmentIds, params)) {
-            // Create classloader and load serializers, whitelisted classes
-            val transactionClassLoader = AttachmentsClassLoader(attachments, params, txId, isAttachmentTrusted, parent)
-            val serializers = createInstancesOfClassesImplementing(transactionClassLoader, SerializationCustomSerializer::class.java)
-            val whitelistedClasses = ServiceLoader.load(SerializationWhitelist::class.java, transactionClassLoader)
-                    .flatMap(SerializationWhitelist::whitelist)
+            doPrivileged(PrivilegedExceptionAction {
+                // Create classloader and load serializers, whitelisted classes
+                val transactionClassLoader = AttachmentsClassLoader(attachments, params, txId, isAttachmentTrusted, parent)
+                val serializers = createInstancesOfClassesImplementing(transactionClassLoader, SerializationCustomSerializer::class.java)
+                val whitelistedClasses = ServiceLoader.load(SerializationWhitelist::class.java, transactionClassLoader)
+                        .flatMap(SerializationWhitelist::whitelist)
 
-            // Create a new serializationContext for the current transaction. In this context we will forbid
-            // deserialization of objects from the future, i.e. disable forwards compatibility. This is to ensure
-            // that app logic doesn't ignore newly added fields or accidentally downgrade data from newer state
-            // schemas to older schemas by discarding fields.
-            SerializationFactory.defaultFactory.defaultContext
+                // Create a new serializationContext for the current transaction. In this context we will forbid
+                // deserialization of objects from the future, i.e. disable forwards compatibility. This is to ensure
+                // that app logic doesn't ignore newly added fields or accidentally downgrade data from newer state
+                // schemas to older schemas by discarding fields.
+                SerializationFactory.defaultFactory.defaultContext
                     .withPreventDataLoss()
                     .withClassLoader(transactionClassLoader)
                     .withWhitelist(whitelistedClasses)
                     .withCustomSerializers(serializers)
                     .withoutCarpenter()
+            })
         }
 
         // Deserialize all relevant classes in the transaction classloader.
@@ -364,7 +372,9 @@ object AttachmentURLStreamHandlerFactory : URLStreamHandlerFactory {
     fun toUrl(attachment: Attachment): URL {
         val id = attachment.id.toString()
         loadedAttachments[id] = attachment
-        return URL(attachmentScheme, "", -1, id, AttachmentURLStreamHandler)
+        return doPrivileged(PrivilegedExceptionAction {
+            URL(attachmentScheme, "", -1, id, AttachmentURLStreamHandler)
+        })
     }
 
     private object AttachmentURLStreamHandler : URLStreamHandler() {
@@ -378,6 +388,7 @@ object AttachmentURLStreamHandlerFactory : URLStreamHandlerFactory {
     private class AttachmentURLConnection(url: URL, private val attachment: Attachment) : URLConnection(url) {
         override fun getContentLengthLong(): Long = attachment.size.toLong()
         override fun getInputStream(): InputStream = attachment.open()
+        override fun getPermission(): Permission? = null
         override fun connect() {
             connected = true
         }
