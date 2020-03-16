@@ -79,7 +79,6 @@ import java.util.*
 import java.util.function.Predicate
 import kotlin.reflect.KClass
 import kotlin.streams.toList
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -621,7 +620,7 @@ class FlowFrameworkTests {
 
             if (firstExecution) {
                 // the following manual persisting Checkpoint.status to FAILED should be removed when implementing CORDA-3604.
-                manuallyFailCheckpointInDB(aliceNode)
+                manuallyHospitalizeCheckpointInDB(aliceNode)
 
                 firstExecution = false
                 throw SQLException("deadlock") // will cause flow to retry
@@ -638,7 +637,7 @@ class FlowFrameworkTests {
 
         aliceNode.services.startFlow(SuspendingFlow()).resultFuture.getOrThrow()
 
-        assertEquals(Checkpoint.FlowStatus.FAILED, checkpointStatusInDBBeforeSuspension)
+        assertEquals(Checkpoint.FlowStatus.HOSPITALIZED, checkpointStatusInDBBeforeSuspension)
         assertEquals(Checkpoint.FlowStatus.RUNNABLE, checkpointStatusInMemoryBeforeSuspension)
         assertEquals(Checkpoint.FlowStatus.RUNNABLE, checkpointStatusInDBAfterSuspension)
 
@@ -658,7 +657,7 @@ class FlowFrameworkTests {
 
             if (firstExecution) {
                 // the following manual persisting Checkpoint.status to FAILED should be removed when implementing CORDA-3604.
-                manuallyFailCheckpointInDB(aliceNode)
+                manuallyHospitalizeCheckpointInDB(aliceNode)
 
                 firstExecution = false
                 throw SQLException("deadlock") // will cause flow to retry
@@ -670,17 +669,17 @@ class FlowFrameworkTests {
 
         aliceNode.services.startFlow(SuspendingFlow()).resultFuture.getOrThrow()
 
-        assertEquals(Checkpoint.FlowStatus.FAILED, checkpointStatusInDB)
+        assertEquals(Checkpoint.FlowStatus.HOSPITALIZED, checkpointStatusInDB)
         assertEquals(Checkpoint.FlowStatus.RUNNABLE, checkpointStatusInMemory)
 
         SuspendingFlow.hookAfterCheckpoint = {}
     }
 
     // the following method should be removed when implementing CORDA-3604.
-    private fun manuallyFailCheckpointInDB(node: TestStartedNode) {
+    private fun manuallyHospitalizeCheckpointInDB(node: TestStartedNode) {
         val idCheckpoint = node.internals.checkpointStorage.getAllCheckpoints().toList().single()
         val checkpoint = idCheckpoint.second
-        val updatedCheckpoint = checkpoint.copy(status = Checkpoint.FlowStatus.FAILED)
+        val updatedCheckpoint = checkpoint.copy(status = Checkpoint.FlowStatus.HOSPITALIZED)
         node.internals.checkpointStorage.updateCheckpoint(idCheckpoint.first,
                 updatedCheckpoint.deserialize(CheckpointSerializationDefaults.CHECKPOINT_CONTEXT),
                 updatedCheckpoint.serializedFlowState)
