@@ -2,7 +2,7 @@ package net.corda.node.services.persistence
 
 import net.corda.core.flows.StateMachineRunId
 import net.corda.core.internal.PLATFORM_VERSION
-import net.corda.core.serialization.CordaSerializable
+import net.corda.core.internal.VisibleForTesting
 import net.corda.core.serialization.SerializationDefaults
 import net.corda.core.serialization.SerializedBytes
 import net.corda.core.serialization.serialize
@@ -249,7 +249,8 @@ class DBCheckpointStorage(private val checkpointPerformanceRecorder: CheckpointP
         }
     }
 
-    private fun getDBCheckpoint(id: StateMachineRunId): DBFlowCheckpoint? {
+    @VisibleForTesting
+    internal fun getDBCheckpoint(id: StateMachineRunId): DBFlowCheckpoint? {
         return currentDBSession().find(DBFlowCheckpoint::class.java, id.uuid.toString())
     }
 
