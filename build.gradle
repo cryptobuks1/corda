@@ -402,16 +402,13 @@ allprojects {
         }
     }
 }
-
 sonarqube {
     properties {
         property "sonar.projectName", "Corda"
         property "sonar.projectKey", "corda"
-        property 'sonar.sources', '**/src'
-        property 'sonar.tests', '**/src'
-        property 'sonar.inclusions', '**/src/main/**'
-        property 'sonar.test.inclusions', '**/src/test/**'
+        property 'sonar.tests', '**/src/test/**,**/src/smoke-test/**,**/src/integration-test/**,**/src/integration-test-slow/**'
         property 'sonar.dynamicAnalysis', 'reuseReports'
+        property 'sonar.kotlin.detekt.reportPaths', "${rootDir}/reports/detekt-baseline.xml,${rootDir}/reports/detekt.xml"
     }
 }
 
@@ -481,7 +478,9 @@ tasks.register('detekt', JavaExec) {
     def baseline = "$projectDir/detekt-baseline.xml"
     def detektPluginsJar = project(':detekt-plugins').tasks.jar
     def plugins = detektPluginsJar.outputs.files.singleFile
-    def params = ['-i', input, '-c', config, '-b', baseline, '--plugins', plugins]
+    def xmlBaselineReport = 'xml:detekt-baseline.xml'
+    def xmlReport = 'xml:reports/detekt.xml'
+    def params = ['-i', input, '-c', config, '-b', baseline, '--plugins', plugins, '-r', xmlReport]
     inputs.files(detektPluginsJar, config, baseline)
     main = "io.gitlab.arturbosch.detekt.cli.Main"
     classpath = configurations.detekt

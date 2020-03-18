@@ -71,7 +71,7 @@ pipeline {
         stage('Sonarqube Report') {
             steps {
                 withSonarQubeEnv('sq01') {
-                    sh "./gradlew --no-daemon build sonarqube -x test --stacktrace"
+                    sh "./gradlew --no-daemon build detekt sonarqube -x test --stacktrace"
                 }
             }
         }
